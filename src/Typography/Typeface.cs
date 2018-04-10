@@ -178,7 +178,8 @@ namespace Typography.OpenFont
         }
         public short GetKernDistance(ushort leftGlyphIndex, ushort rightGlyphIndex)
         {
-            return _kern.GetKerningDistance(leftGlyphIndex, rightGlyphIndex);
+            if(_kern == null) return 0; 
+            else return _kern.GetKerningDistance(leftGlyphIndex, rightGlyphIndex);
         }
         public Bounds Bounds { get { return _bounds; } }
         public ushort UnitsPerEm { get { return _unitsPerEm; } }

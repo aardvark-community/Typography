@@ -10,6 +10,9 @@ let printComponents (typeface : Typeface) (c : char) =
     let glyph = typeface.Glyphs.[int idx]
 
 
+    
+
+
     let components =
         glyph.EndPoints |> Array.mapi (fun i stop ->
             let stop = int stop
@@ -32,7 +35,7 @@ let main argv =
     let reader = OpenFontReader()
     let typeface = reader.Read(stream, ReadFlags.Full)
 
-    let d = typeface.GetKernDistance(typeface.LookupIndex(int 'A'), typeface.LookupIndex(int 'W'))
+    let d = typeface.GetKernDistance(typeface.LookupIndex(int 'W'), typeface.LookupIndex(int 'W'))
     printfn "%A" d
     //printComponents typeface 'a'
 
