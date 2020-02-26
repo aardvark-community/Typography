@@ -1,4 +1,4 @@
-﻿// Copyright © 2017 Sam Hocevar <sam@hocevar.net>
+﻿// Copyright © 2017-present Sam Hocevar <sam@hocevar.net>
 // Apache2
 
 using System;
@@ -9,7 +9,8 @@ namespace Typography.OpenFont.Tables
 {
     public class COLR : TableEntry
     {
-        public override string Name { get { return "COLR"; } }
+        public const string _N = "COLR";
+        public override string Name => _N;
 
         // Read the COLR table
         // https://www.microsoft.com/typography/otspec/colr.htm

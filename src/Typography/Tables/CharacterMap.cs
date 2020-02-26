@@ -1,15 +1,15 @@
-﻿//Apache2, 2017, WinterDev, Sam Hocevar
+﻿//Apache2, 2017-present, WinterDev, Sam Hocevar
 //Apache2, 2014-2016, Samuel Carlsson, WinterDev
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Typography.OpenFont
+namespace Typography.OpenFont.Tables
 {
     class CharMapFormat4 : CharacterMap
     {
-        public override ushort Format { get { return 4; } }
+        public override ushort Format => 4;
 
         readonly ushort[] _startCode; //Starting character code for each segment
         readonly ushort[] _endCode;//Ending character code for each segment, last = 0xFFFF.      
@@ -76,18 +76,30 @@ namespace Typography.OpenFont
                 return _glyphIdArray[offset - _idRangeOffset.Length + i];
             }
         }
+        public override void CollectUnicodeChars(List<uint> unicodes)
+        {
+            for (int i = 0; i < _startCode.Length; ++i)
+            {
+                uint start = _startCode[i];
+                uint stop = _endCode[i];
+                for (uint u = start; u <= stop; ++u)
+                {
+                    unicodes.Add(u);
+                }
+            }
+        }
     }
 
     class CharMapFormat12 : CharacterMap
     {
-        public override ushort Format { get { return 12; } }
+        public override ushort Format => 12;
 
-        uint[] startCharCodes, endCharCodes, startGlyphIds;
+        uint[] _startCharCodes, _endCharCodes, _startGlyphIds;
         internal CharMapFormat12(uint[] startCharCodes, uint[] endCharCodes, uint[] startGlyphIds)
         {
-            this.startCharCodes = startCharCodes;
-            this.endCharCodes = endCharCodes;
-            this.startGlyphIds = startGlyphIds;
+            _startCharCodes = startCharCodes;
+            _endCharCodes = endCharCodes;
+            _startGlyphIds = startGlyphIds;
         }
 
         protected override ushort RawCharacterToGlyphIndex(int codepoint)
@@ -95,20 +107,32 @@ namespace Typography.OpenFont
             // https://www.microsoft.com/typography/otspec/cmap.htm#format12
             // "Groups must be sorted by increasing startCharCode."
             // -> binary search is valid here
-            int i = Array.BinarySearch(startCharCodes, (uint)codepoint);
+            int i = Array.BinarySearch(_startCharCodes, (uint)codepoint);
             i = i < 0 ? ~i - 1 : i;
 
-            if (i >= 0 && codepoint <= endCharCodes[i])
+            if (i >= 0 && codepoint <= _endCharCodes[i])
             {
-                return (ushort)(startGlyphIds[i] + codepoint - startCharCodes[i]);
+                return (ushort)(_startGlyphIds[i] + codepoint - _startCharCodes[i]);
             }
             return 0;
+        }
+        public override void CollectUnicodeChars(List<uint> unicodes)
+        {
+            for (int i = 0; i < _startCharCodes.Length; ++i)
+            {
+                uint start = _startCharCodes[i];
+                uint stop = _endCharCodes[i];
+                for (uint u = start; u <= stop; ++u)
+                {
+                    unicodes.Add(u);
+                }
+            }
         }
     }
 
     class CharMapFormat6 : CharacterMap
     {
-        public override ushort Format { get { return 6; } }
+        public override ushort Format => 6;
 
         internal CharMapFormat6(ushort startCode, ushort[] glyphIdArray)
         {
@@ -127,8 +151,17 @@ namespace Typography.OpenFont
             return i >= 0 && i < _glyphIdArray.Length ? _glyphIdArray[i] : (ushort)0;
         }
 
-        private readonly ushort _startCode;
-        private readonly ushort[] _glyphIdArray;
+        readonly ushort _startCode;
+        readonly ushort[] _glyphIdArray;
+
+        public override void CollectUnicodeChars(List<uint> unicodes)
+        {
+            ushort u = _startCode;
+            for (uint i = 0; i < _glyphIdArray.Length; ++i)
+            {
+                unicodes.Add(u + i);
+            }
+        }
     }
 
 
@@ -145,18 +178,18 @@ namespace Typography.OpenFont
     // subtable itself.
     class CharMapFormat14 : CharacterMap
     {
-        public override ushort Format { get { return 14; } }
-        protected override ushort RawCharacterToGlyphIndex(int character) { return 0; }
+        public override ushort Format => 14;
+        protected override ushort RawCharacterToGlyphIndex(int character) => 0;
 
         public ushort CharacterPairToGlyphIndex(int codepoint, ushort defaultGlyphIndex, int nextCodepoint)
         {
             // Only check codepoint if nextCodepoint is a variation selector
-            VariationSelector sel;
-            if (_variationSelectors.TryGetValue(nextCodepoint, out sel))
+
+            if (_variationSelectors.TryGetValue(nextCodepoint, out VariationSelector sel))
             {
                 // If the sequence is a non-default UVS, return the mapped glyph
-                ushort ret = 0;
-                if (sel.UVSMappings.TryGetValue(codepoint, out ret))
+
+                if (sel.UVSMappings.TryGetValue(codepoint, out ushort ret))
                 {
                     return ret;
                 }
@@ -180,6 +213,15 @@ namespace Typography.OpenFont
             // In all other cases, return 0
             return 0;
         }
+
+        public override void CollectUnicodeChars(List<uint> unicodes)
+        {
+            //TODO: review here
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine("not implemented");
+#endif
+        }
+
 
         public static CharMapFormat14 Create(BinaryReader reader)
         {
@@ -314,7 +356,7 @@ namespace Typography.OpenFont
             return new CharMapFormat14 { _variationSelectors = variationSelectors };
         }
 
-        private class VariationSelector
+        class VariationSelector
         {
             public List<int> DefaultStartCodes = new List<int>();
             public List<int> DefaultEndCodes = new List<int>();
@@ -329,9 +371,9 @@ namespace Typography.OpenFont
     /// </summary>
     class NullCharMap : CharacterMap
     {
-        public override ushort Format { get { return 0; } }
-
-        protected override ushort RawCharacterToGlyphIndex(int character) { return 0; }
+        public override ushort Format => 0;
+        protected override ushort RawCharacterToGlyphIndex(int character) => 0;
+        public override void CollectUnicodeChars(List<uint> unicodes) {  /*nothing*/}
     }
 
     abstract class CharacterMap
@@ -347,11 +389,14 @@ namespace Typography.OpenFont
         }
 
         protected abstract ushort RawCharacterToGlyphIndex(int codepoint);
+        public abstract void CollectUnicodeChars(List<uint> unicodes);
+
+
 
         //public void CollectGlyphIndexListFromSampleChar(char starAt, char endAt, GlyphIndexCollector collector)
         //{
         //    // TODO: Fast segment lookup using bit operations?
-        //    switch (this._cmapFormat)
+        //    switch (_cmapFormat)
         //    {
         //        default: throw new NotSupportedException();
         //        case 4:
@@ -440,28 +485,4 @@ namespace Typography.OpenFont
     }
 
 
-
-    public class GlyphIndexCollector
-    {
-        Dictionary<int, List<ushort>> registerSegments = new Dictionary<int, List<ushort>>();
-        public bool HasRegisterSegment(int segmentNumber)
-        {
-            return registerSegments.ContainsKey(segmentNumber);
-        }
-        public void RegisterGlyphRangeIndex(int segmentNumber, List<ushort> glyphIndexList)
-        {
-            registerSegments.Add(segmentNumber, glyphIndexList);
-        }
-        public IEnumerable<ushort> GetGlyphIndexIter()
-        {
-            foreach (List<ushort> list in registerSegments.Values)
-            {
-                int j = list.Count;
-                for (int i = 0; i < j; ++i)
-                {
-                    yield return list[i];
-                }
-            }
-        }
-    }
 }

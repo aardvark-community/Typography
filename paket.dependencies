@@ -1,11 +1,11 @@
 framework: netstandard2.0, net471, netcoreapp2.0
 source https://api.nuget.org/v3/index.json
 
-nuget FSharp.Core ~> 4.6.2
+nuget FSharp.Core >= 4.6.2 lowest_matching: true
+nuget System.Numerics.Vectors >= 4.5.0
 
 group Build
-framework: net45
-content: none
+framework: netstandard2.0
 source https://api.nuget.org/v3/index.json
 
-github aardvark-platform/aardvark.fake:v4-temp
+github aardvark-platform/aardvark.fake:v5

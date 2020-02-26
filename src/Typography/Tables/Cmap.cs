@@ -1,4 +1,4 @@
-﻿//Apache2, 2017, WinterDev
+﻿//Apache2, 2017-present, WinterDev
 //Apache2, 2014-2016, Samuel Carlsson, WinterDev
 
 using System;
@@ -6,6 +6,50 @@ using System.Collections.Generic;
 using System.IO;
 namespace Typography.OpenFont.Tables
 {
+
+    //---------------------------------------------------
+    //cmap - Character To Glyph Index Mapping Table
+    //---------------------------------------------------
+    //This table defines the mapping of character codes to the glyph index values used in the font. 
+    //It may contain more than one subtable, in order to support more than one character encoding scheme.
+    //Character codes that do not correspond to any glyph in the font should be mapped to glyph index 0.
+    //The glyph at this location must be a special glyph representing a missing character, commonly known as .notdef.
+
+    //The table header indicates the character encodings for which subtables are present.
+    //Each subtable is in one of seven possible formats and begins with a format code indicating the format used.
+
+    //The platform ID and platform - specific encoding ID in the header entry(and, in the case of the Macintosh platform,
+    //the language field in the subtable itself) are used to specify a particular 'cmap' encoding.
+    //The header entries must be sorted first by platform ID, then by platform - specific encoding ID,
+    //and then by the language field in the corresponding subtable.Each platform ID, 
+    //platform - specific encoding ID, and subtable language combination may appear only once in the 'cmap' table.
+
+    //When building a Unicode font for Windows, the platform ID should be 3 and the encoding ID should be 1.
+    //When building a symbol font for Windows, the platform ID should be 3 and the encoding ID should be 0.
+    //When building a font that will be used on the Macintosh, the platform ID should be 1 and the encoding ID should be 0.
+
+    //All Microsoft Unicode BMP encodings(Platform ID = 3, Encoding ID = 1) must provide at least a Format 4 'cmap' subtable.
+    //If the font is meant to support supplementary(non - BMP) Unicode characters,
+    //it will additionally need a Format 12 subtable with a platform encoding ID 10.
+    //The contents of the Format 12 subtable need to be a superset of the contents of the Format 4 subtable.
+    //Microsoft strongly recommends using a BMP Unicode 'cmap' for all fonts. However, some other encodings that appear in current fonts follow:
+
+    //Windows Encodings
+    //Platform ID Encoding ID Description
+    //3   0   Symbol
+    //3   1   Unicode BMP(UCS - 2)
+    //3   2   ShiftJIS
+    //3   3   PRC
+    //3   4   Big5
+    //3   5   Wansung
+    //3   6   Johab
+    //3   7   Reserved
+    //3   8   Reserved
+    //3   9   Reserved
+    //3   10  Unicode UCS - 4
+    //---------------------------------------------------
+
+
     ////////////////////////////////////////////////////////////////////////
     //from https://www.microsoft.com/typography/developers/opentype/detail.htm
     //CMAP Table
@@ -29,15 +73,21 @@ namespace Typography.OpenFont.Tables
 
     class Cmap : TableEntry
     {
-        public override string Name { get { return "cmap"; } }
+        public const string _N = "cmap";
+        public override string Name => _N;
 
-        public ushort LookupIndex(int codepoint, int nextCodepoint = 0)
+        /// <summary>
+        /// find glyph index from given codepoint
+        /// </summary>
+        /// <param name="codepoint"></param>
+        /// <param name="nextCodepoint"></param>
+        /// <returns>glyph index</returns>
+        public ushort GetGlyphIndex(int codepoint, int nextCodepoint = 0)
         {
             // https://www.microsoft.com/typography/OTSPEC/cmap.htm
             // "character codes that do not correspond to any glyph in the font should be mapped to glyph index 0."
-            ushort ret = 0;
 
-            if (!_codepointToGlyphs.TryGetValue(codepoint, out ret))
+            if (!_codepointToGlyphs.TryGetValue(codepoint, out ushort found))
             {
                 foreach (CharacterMap cmap in _charMaps)
                 {
@@ -45,13 +95,13 @@ namespace Typography.OpenFont.Tables
 
                     //https://www.microsoft.com/typography/OTSPEC/cmap.htm
                     //...When building a Unicode font for Windows, the platform ID should be 3 and the encoding ID should be 1
-                    if (ret == 0 || (gid != 0 && cmap.PlatformId == 3 && cmap.EncodingId == 1))
+                    if (found == 0 || (gid != 0 && cmap.PlatformId == 3 && cmap.EncodingId == 1))
                     {
-                        ret = gid;
+                        found = gid;
                     }
                 }
 
-                _codepointToGlyphs[codepoint] = ret;
+                _codepointToGlyphs[codepoint] = found;
             }
 
             // If there is a second codepoint, we are asked whether this is an UVS sequence
@@ -61,10 +111,9 @@ namespace Typography.OpenFont.Tables
             {
                 foreach (CharacterMap cmap in _charMaps)
                 {
-                    if (cmap is CharMapFormat14)
+                    if (cmap is CharMapFormat14 cmap14)
                     {
-                        CharMapFormat14 cmap14 = cmap as CharMapFormat14;
-                        ushort gid = cmap14.CharacterPairToGlyphIndex(codepoint, ret, nextCodepoint);
+                        ushort gid = cmap14.CharacterPairToGlyphIndex(codepoint, found, nextCodepoint);
                         if (gid > 0)
                         {
                             return gid;
@@ -75,11 +124,11 @@ namespace Typography.OpenFont.Tables
                 return 0;
             }
 
-            return ret;
+            return found;
         }
 
-        private List<CharacterMap> _charMaps = new List<CharacterMap>();
-        private Dictionary<int, ushort> _codepointToGlyphs = new Dictionary<int, ushort>();
+        List<CharacterMap> _charMaps = new List<CharacterMap>();
+        Dictionary<int, ushort> _codepointToGlyphs = new Dictionary<int, ushort>();
 
         protected override void ReadContentFrom(BinaryReader input)
         {
@@ -334,6 +383,14 @@ namespace Typography.OpenFont.Tables
                 case 6: return ReadFormat_6(input);
                 case 12: return ReadFormat_12(input);
                 case 14: return CharMapFormat14.Create(input);
+            }
+        }
+
+        public void CollectUnicode(List<uint> unicodes)
+        {
+            foreach (CharacterMap cmap in _charMaps)
+            {
+                cmap.CollectUnicodeChars(unicodes);
             }
         }
     }

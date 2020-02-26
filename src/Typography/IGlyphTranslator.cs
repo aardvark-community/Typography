@@ -1,4 +1,4 @@
-﻿//MIT, 2016-2017, WinterDev
+﻿//MIT, 2016-present, WinterDev
 //MIT, 2015, Michael Popoloski 
 //FTL, 3-clauses BSD, FreeType project
 //-----------------------------------------------------
@@ -78,7 +78,7 @@ namespace Typography.OpenFont
 
     public static class IGlyphReaderExtensions
     {
-
+        //for TrueType Font
         public static void Read(this IGlyphTranslator tx, GlyphPointF[] glyphPoints, ushort[] contourEndPoints, float scale = 1)
         {
 
@@ -97,6 +97,9 @@ namespace Typography.OpenFont
 
             while (todoContourCount > 0)
             {
+                //reset              
+                curveControlPointCount = 0;
+
                 //foreach contour...
                 //next contour will begin at...
                 int nextCntBeginAtIndex = contourEndPoints[startContour] + 1;
@@ -108,8 +111,9 @@ namespace Typography.OpenFont
                 Vector2 c1 = new Vector2(); //control point of quadratic curve
                 //-------------------------------------------------------------------
                 bool offCurveMode = false;
-                bool isFirstOnCurvePoint = true; //first point of this contour
-
+                bool foundFirstOnCurvePoint = false;
+                bool startWithOffCurve = false;
+                int cnt_point_count = 0;
                 //-------------------------------------------------------------------
                 //[A]
                 //first point may start with 'ON CURVE" or 'OFF-CURVE'
@@ -124,12 +128,9 @@ namespace Typography.OpenFont
 
 #if DEBUG
                 int dbug_cmdcount = 0;
-#endif
-
-
+#endif 
                 for (; cpoint_index < nextCntBeginAtIndex; ++cpoint_index)
                 {
-
 
 #if DEBUG
                     dbug_cmdcount++;
@@ -149,6 +150,8 @@ namespace Typography.OpenFont
                     //      else then p is end point of a line.
 
                     GlyphPointF p = glyphPoints[cpoint_index];
+                    cnt_point_count++;
+
                     float p_x = p.X * scale;
                     float p_y = p.Y * scale;
 
@@ -207,10 +210,10 @@ namespace Typography.OpenFont
                             // p is ON CURVE, but now we are in OFF-CURVE mode.
                             //
                             //as describe above [B.2] ,... 
-                            if (isFirstOnCurvePoint)
+                            if (!foundFirstOnCurvePoint)
                             {
                                 //special treament for first point
-                                isFirstOnCurvePoint = false;
+                                foundFirstOnCurvePoint = true;
                                 switch (curveControlPointCount)
                                 {
                                     case 0:
@@ -248,14 +251,21 @@ namespace Typography.OpenFont
                     }
                     else
                     {
+
+
                         //p is OFF-CURVE point (this is curve control point)
                         //
+                        if (cnt_point_count == 1)
+                        {
+                            //1st point
+                            startWithOffCurve = true;
+                        }
                         switch (curveControlPointCount)
                         {
 
                             case 0:
                                 c1 = new Vector2(p_x, p_y);
-                                if (!isFirstOnCurvePoint)
+                                if (foundFirstOnCurvePoint)
                                 {
                                     //this point is curve control point***
                                     //so set curve mode = true 
@@ -269,6 +279,25 @@ namespace Typography.OpenFont
                                 break;
                             case 1:
                                 {
+                                    if (!foundFirstOnCurvePoint)
+                                    {
+                                        Vector2 mid2 = GetMidPoint(c1, p_x, p_y);
+                                        //----------
+                                        //2. generate curve3 *** 
+                                        c_begin = c1;
+                                        has_c_begin = true;
+
+
+                                        tx.MoveTo(latest_moveto_x = mid2.X, latest_moveto_y = mid2.Y);
+
+                                        offCurveMode = true;
+                                        foundFirstOnCurvePoint = true;
+
+                                        c1 = new Vector2(p_x, p_y);
+                                        continue;
+
+                                    }
+
                                     //we already have previous 1st control point (c1)
                                     //------------------------------------- 
                                     //please note that TrueType font
@@ -309,6 +338,7 @@ namespace Typography.OpenFont
                 //--------
                 //when finish,                 
                 //ensure that the contour is closed.
+
                 if (offCurveMode)
                 {
                     switch (curveControlPointCount)
@@ -347,9 +377,19 @@ namespace Typography.OpenFont
                             throw new NotSupportedException();
 
                     }
-                    //reset
-                    offCurveMode = false;
-                    curveControlPointCount = 0;
+                }
+                else
+                {
+                    //end with touch curve
+                    //but if this start with off curve 
+                    //then we must close it properly
+                    if (startWithOffCurve)
+                    {
+                        //start with off-curve and end with touch curve                         
+                        tx.Curve3(
+                           c_begin.X, c_begin.Y,
+                           latest_moveto_x, latest_moveto_y);
+                    }
                 }
 
                 //--------      
@@ -369,6 +409,13 @@ namespace Typography.OpenFont
             return new Vector2(
                 ((v0.X + x1) / 2f),
                 ((v0.Y + y1) / 2f));
+        }
+        //-----------
+        //for CFF1
+        public static void Read(this IGlyphTranslator tx, CFF.Cff1Font cff1Font, CFF.Cff1GlyphData glyphData, float scale = 1)
+        {
+            CFF.CffEvaluationEngine evalEngine = new CFF.CffEvaluationEngine();
+            evalEngine.Run(tx, cff1Font, glyphData.GlyphInstructions, scale);
         }
     }
 

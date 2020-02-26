@@ -6,7 +6,7 @@ open System.IO
 
 
 let printComponents (typeface : Typeface) (c : char) =
-    let idx = typeface.LookupIndex(int c)
+    let idx = typeface.GetGlyphIndex(int c)
     let glyph = typeface.Glyphs.[int idx]
 
 
@@ -25,17 +25,17 @@ let printComponents (typeface : Typeface) (c : char) =
 
         for pt in components.[i] do
             
-            printfn "  %A %A %A" pt.X pt.Y pt.OnCurve
+            printfn "  %A %A" pt.X pt.Y
          
 
 [<EntryPoint>]
 let main argv =
 
-    use stream = File.OpenRead @"C:\windows\fonts\arial.ttf"
+    use stream = File.OpenRead @"C:\Users\Schorsch\AppData\Local\fontsquirrel\mplus-1m-regular.ttf"
     let reader = OpenFontReader()
-    let typeface = reader.Read(stream, ReadFlags.Full)
+    let typeface = reader.Read(stream, 0, ReadFlags.Full)
 
-    let d = typeface.GetKernDistance(typeface.LookupIndex(int 'W'), typeface.LookupIndex(int 'W'))
+    let d = typeface.GetKernDistance(typeface.GetGlyphIndex(int 'W'), typeface.GetGlyphIndex(int 'W'))
     printfn "%A" d
     //printComponents typeface 'a'
 
